@@ -7,7 +7,18 @@ var fs = require('fs'),
 antinode = require('./lib/antinode'),
 sys = require('sys');
 
-fs.readFile(process.argv[2] || './settings.json', function(err, data) {
+function isValidPath(filePath) {
+    // Basic validation to prevent path traversal
+    return !filePath.includes('..') && !filePath.startsWith('/');
+}
+
+var settingsPath = process.argv[2] || './settings.json';
+if (!isValidPath(settingsPath)) {
+    sys.puts('Invalid file path provided.');
+    process.exit(1);
+}
+
+fs.readFile(settingsPath, function(err, data) {
     var settings = {};
     if (err) {
         sys.puts('No settings.json found ('+err+'). Using default settings');
