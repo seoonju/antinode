@@ -1,23 +1,49 @@
-#!/usr/bin/env node
-/**
- * Simple webserver with logging. By default, serves whatever files are
- * reachable from the directory where node is running.
- */
-var fs = require('fs'),
-antinode = require('./lib/antinode'),
-sys = require('sys');
+var express = require('express')
+var bodyParser = require('body-parser')
+var passport = require('passport')
+var session = require('express-session')
+var ejs = require('ejs')
+var morgan = require('morgan')
+const fileUpload = require('express-fileupload');
+var config = require('./config/server')
 
-fs.readFile(process.argv[2] || './settings.json', function(err, data) {
-    var settings = {};
-    if (err) {
-        sys.puts('No settings.json found ('+err+'). Using default settings');
-    } else {
-        try {
-            settings = JSON.parse(data.toString('utf8',0,data.length));
-        } catch (e) {
-            sys.puts('Error parsing settings.json: '+e);
-            process.exit(1);
-        }
-    }
-    antinode.start(settings);
-});
+//Initialize Express
+var app = express()
+require('./core/passport')(passport)
+app.use(express.static('public'))
+app.set('view engine','ejs')
+app.use(morgan('tiny'))
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(fileUpload());
+
+// Enable for Reverse proxy support
+// app.set('trust proxy', 1)
+
+// Intialize Session
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'default_secret',
+  resave: true,
+  saveUninitialized: true,
+  name: 'session_id',
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    domain: 'yourdomain.com',
+    path: '/',
+    expires: new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+  }
+}))
+
+// Initialize Passport
+app.use(passport.initialize())
+app.use(passport.session())
+
+// Initialize express-flash
+app.use(require('express-flash')());
+
+// Routing
+app.use('/app',require('./routes/app')())
+app.use('/',require('./routes/main')(passport))
+
+// Start Server
+app.listen(config.port, config.listen)
